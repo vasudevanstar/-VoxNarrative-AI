@@ -1,0 +1,7 @@
+{
+  "name": "Remix: VoxNarrative AI",
+  "description": "A voice-enabled interactive storytelling platform powered by Gemini AI, featuring real-time collaboration and dynamic story branching.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
