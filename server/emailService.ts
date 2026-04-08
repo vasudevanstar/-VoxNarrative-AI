@@ -1,14 +1,22 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || '587'),
-  secure: process.env.EMAIL_SECURE === 'true',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const getTransporter = () => {
+  const host = process.env.EMAIL_HOST;
+  console.log(`[EmailService] Attempting to connect to host: "${host}"`);
+  return nodemailer.createTransport({
+    host: host,
+    port: parseInt(process.env.EMAIL_PORT || '587'),
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
+
+
+
+
 
 export const sendInvitationEmail = async (to: string, storyTitle: string, inviterName: string, storyUrl: string) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -42,6 +50,7 @@ export const sendInvitationEmail = async (to: string, storyTitle: string, invite
   };
 
   try {
+    const transporter = getTransporter();
     await transporter.sendMail(mailOptions);
     console.log(`Invitation email sent to ${to}`);
   } catch (error) {
@@ -63,6 +72,7 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
   };
 
   try {
+    const transporter = getTransporter();
     await transporter.sendMail(mailOptions);
     console.log(`Email sent to ${to}`);
   } catch (error) {

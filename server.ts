@@ -1,3 +1,6 @@
+import 'dotenv/config';
+console.log('Environment loaded. EMAIL_HOST:', process.env.EMAIL_HOST ? 'Present' : 'Missing');
+
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -6,10 +9,8 @@ import path from "path";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
-import dotenv from "dotenv";
 import { sendInvitationEmail, sendEmail } from "./server/emailService.js";
 
-dotenv.config();
 
 const db = new Database("stories.db");
 const JWT_SECRET = process.env.JWT_SECRET || "vox-narrative-secret-key-2024";
@@ -89,6 +90,18 @@ async function startServer() {
 
   app.use(express.json());
 
+  app.get("/api/health/email", (req, res) => {
+    res.json({
+      host: !!process.env.EMAIL_HOST,
+      port: !!process.env.EMAIL_PORT,
+      user: !!process.env.EMAIL_USER,
+      pass: !!process.env.EMAIL_PASS,
+      node_env: process.env.NODE_ENV,
+      email_host_value: process.env.EMAIL_HOST // temporarily for debugging
+    });
+  });
+
+
   // Auth Middleware
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -141,7 +154,7 @@ async function startServer() {
   app.post("/api/stories", authenticateToken, (req: any, res) => {
     const { title, genre, language, characters, tone, setting } = req.body;
     if (!title) return res.status(400).json({ error: "Title is required" });
-    
+
     try {
       const stmt = db.prepare("INSERT INTO stories (title, genre, language, characters, tone, setting, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
       const info = stmt.run(title, genre, language, characters, tone, setting, req.user.id);
@@ -161,19 +174,19 @@ async function startServer() {
   app.post("/api/stories/:id/branches", authenticateToken, (req: any, res) => {
     const { content, parent_id, choice_text, target_branch_id } = req.body;
     if (!content && content !== "" && !target_branch_id) return res.status(400).json({ error: "Content or target is required" });
-    
+
     try {
       const stmt = db.prepare("INSERT INTO story_branches (story_id, parent_id, content, choice_text, target_branch_id) VALUES (?, ?, ?, ?, ?)");
       const info = stmt.run(req.params.id, parent_id, content || "", choice_text, target_branch_id);
-      const newBranch = { 
-        id: info.lastInsertRowid, 
-        story_id: req.params.id, 
-        parent_id, 
-        content: content || "", 
-        choice_text, 
+      const newBranch = {
+        id: info.lastInsertRowid,
+        story_id: req.params.id,
+        parent_id,
+        content: content || "",
+        choice_text,
         target_branch_id,
-        created_at: new Date().toISOString(), 
-        notes: "" 
+        created_at: new Date().toISOString(),
+        notes: ""
       };
       res.status(201).json(newBranch);
     } catch (err) {
@@ -197,7 +210,7 @@ async function startServer() {
         WHERE id = ?
       `);
       stmt.run(content, notes, choice_text, target_branch_id, req.params.id);
-      
+
       const updatedBranch = db.prepare("SELECT * FROM story_branches WHERE id = ?").get(req.params.id);
       res.json(updatedBranch);
     } catch (err) {
@@ -243,7 +256,7 @@ async function startServer() {
         WHERE id = ?
       `);
       stmt.run(title, genre, language, characters, tone, setting, req.params.id);
-      
+
       const updatedStory = db.prepare("SELECT * FROM stories WHERE id = ?").get(req.params.id);
       res.json(updatedStory);
     } catch (err) {
@@ -256,20 +269,20 @@ async function startServer() {
   app.post("/api/stories/:id/collaborate", authenticateToken, async (req: any, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: "Collaborator email is required" });
-    
+
     const user = db.prepare("SELECT id, username FROM users WHERE email = ?").get(email) as any;
     if (!user) return res.status(400).json({ error: `User with email ${email} not found. Please ensure they have registered.` });
-    
+
     try {
       db.prepare("INSERT INTO collaborations (story_id, user_id) VALUES (?, ?)").run(req.params.id, user.id);
-      
+
       // Send invitation email
       const story = db.prepare("SELECT title FROM stories WHERE id = ?").get(req.params.id) as any;
       const appUrl = process.env.APP_URL || `http://localhost:3000`;
       const storyUrl = `${appUrl}/story/${req.params.id}`;
-      
+
       await sendInvitationEmail(email, story.title, req.user.username, storyUrl);
-      
+
       res.json({ success: true });
     } catch (e) {
       res.status(400).json({ error: "Already collaborating" });
@@ -279,9 +292,9 @@ async function startServer() {
   app.post("/api/send-message", authenticateToken, async (req: any, res) => {
     const { to, subject, message } = req.body;
     if (!to || !subject || !message) {
-      return res.status(400).json({ 
-        error: "Missing required fields", 
-        details: { to: !!to, subject: !!subject, message: !!message } 
+      return res.status(400).json({
+        error: "Missing required fields",
+        details: { to: !!to, subject: !!subject, message: !!message }
       });
     }
 
@@ -323,12 +336,12 @@ async function startServer() {
       currentStoryId = storyId;
       currentUsername = username;
       socket.join(`story-${storyId}`);
-      
+
       if (!storyUsers.has(storyId)) {
         storyUsers.set(storyId, new Set());
       }
       storyUsers.get(storyId)?.add(username);
-      
+
       io.to(`story-${storyId}`).emit("collaborators-update", Array.from(storyUsers.get(storyId) || []));
     });
 
